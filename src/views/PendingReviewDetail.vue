@@ -24,17 +24,22 @@
               <ion-label slot="start">
                 <p class="overline" v-if="currentCycleCount.countTypeEnumId === 'HARD_COUNT'">{{ translate("HARD COUNT") }}</p>
                 <h1 v-show="!isCountNameUpdating">{{ countName }}</h1>
-                <!-- Added class as we can't change the background of ion-input with css property, and we need to change the background to show the user that now this value is editable -->
                 <ion-input ref="countNameRef" :class="isCountNameUpdating ? 'name' : ''" v-show="isCountNameUpdating" aria-label="group name" v-model="countName"></ion-input>
                 <p>{{ currentCycleCount.countId }}</p>
               </ion-label>
 
-              <ion-button v-show="!isCountNameUpdating" slot="end" color="medium" fill="outline" size="small" @click="editCountName()">
-                {{ translate("Rename") }}
-              </ion-button>
-              <ion-button v-show="isCountNameUpdating" slot="end" color="medium" fill="outline" size="small" @click="updateCountName()">
-                {{ translate("Save") }}
-              </ion-button>
+              <div slot="end" class="ion-text-end">
+                <ion-button v-show="!isCountNameUpdating" color="medium" fill="outline" size="small" @click="editCountName()">
+                  {{ translate("Rename") }}
+                </ion-button>
+                <ion-button v-show="isCountNameUpdating" color="medium" fill="outline" size="small" @click="updateCountName()">
+                  {{ translate("Save") }}
+                </ion-button>
+                <ion-button color="medium" fill="outline" size="small" @click="toggleChart()">
+                  <ion-icon :icon="barChartOutline" slot="start" />
+                  {{ translate(showChart ? "Hide Chart" : "Show Chart") }}
+                </ion-button>
+              </div>
             </ion-item>
             <ion-chip outline @click="openDateTimeModal">
               <ion-icon :icon="calendarClearOutline"></ion-icon>
@@ -84,7 +89,27 @@
             </div>
           </ion-list>
         </div>
-
+        <!-- <DoughnutChart 
+          v-if="showChart"
+          :labels="chartData.labels"
+          :data="chartData.data"
+          :backgroundColor="chartData.backgroundColor"
+          :borderColor="chartData.borderColor"
+          title="Cycle Count Distribution"
+          :isVisible="showChart"
+          :showPercentage="true"
+          cutout="60%"
+        /> -->
+        <BarChart
+          :labels="chartData.labels"
+          :data="chartData.data"
+          :backgroundColor="chartData.backgroundColor"
+          :borderColor="chartData.borderColor"
+          title="Cycle Count Distribution"
+          :isVisible="showChart"
+          :showLegend="true"
+          :yAxisStepSize="1"
+        />
         <div class="header border">
           <ion-segment v-model="segmentSelected" @ionChange="segmentChanged">
             <ion-segment-button value="all">
@@ -186,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { calendarClearOutline, businessOutline, thermometerOutline, thumbsUpOutline, refreshOutline, thumbsDownOutline, checkboxOutline, addOutline, receiptOutline, playBackOutline, squareOutline } from "ionicons/icons";
+import { calendarClearOutline, businessOutline, thermometerOutline, thumbsUpOutline, refreshOutline, thumbsDownOutline, checkboxOutline, addOutline, receiptOutline, playBackOutline, squareOutline, barChartOutline } from "ionicons/icons";
 import { IonBackButton, IonBadge, IonButtons, IonButton, IonCheckbox, IonChip, IonContent, IonDatetime, IonModal, IonFab, IonFabButton, IonFooter, IonHeader, IonIcon, IonItem, IonInput, IonLabel, IonList, IonPage, IonRange, IonSegment, IonSegmentButton, IonThumbnail, IonTitle, IonToolbar, modalController, onIonViewWillEnter, onIonViewWillLeave } from "@ionic/vue";
 import { translate } from '@/i18n'
 import { computed, defineProps, nextTick, ref } from "vue";
@@ -200,6 +225,8 @@ import router from "@/router";
 import Image from "@/components/Image.vue"
 import { DateTime } from "luxon";
 import { getProductIdentificationValue, useProductIdentificationStore } from "@hotwax/dxp-components";
+import DoughnutChart from "@/components/Charts/DoughnutChart.vue";
+import BarChart from "@/components/Charts/BarChart.vue";
 
 const props = defineProps({
   inventoryCountImportId: String
@@ -238,6 +265,28 @@ let isCountNameUpdating = ref(false)
 let countName = ref("")
 let segmentSelected = ref("all")
 let varianceThreshold = ref(40)
+let showChart = ref(false)
+
+const chartData = computed(() => {
+  const allItems = currentCycleCount.value.items?.filter((item: any) => item.itemStatusId === "INV_COUNT_CREATED").length || 0
+  const acceptedItems = currentCycleCount.value.items?.filter((item: any) => isItemReadyToAccept(item) && item.itemStatusId === "INV_COUNT_CREATED").length || 0
+  const rejectedItems = currentCycleCount.value.items?.filter((item: any) => isItemReadyToReject(item) && item.itemStatusId === "INV_COUNT_CREATED").length || 0
+
+  return {
+    labels: ['All', 'Accepted', 'Rejected'],
+    data: [allItems, acceptedItems, rejectedItems],
+    backgroundColor: [
+      'rgba(108, 117, 125, 0.5)',
+      'rgba(40, 167, 69, 0.5)',
+      'rgba(220, 53, 69, 0.5)',
+    ],
+    borderColor: [
+      'rgb(108, 117, 125)',
+      'rgb(40, 167, 69)',
+      'rgb(220, 53, 69)',
+    ]
+  }
+})
 
 onIonViewWillEnter(async () => {
   emitter.emit("presentLoader", { message: "Loading cycle count details" })
@@ -605,6 +654,10 @@ function updateCustomTime(event: any) {
 // Method checks whether all the items selected all counted(having some quantity) or not, as we do not allow accepting those items on which quantity is not set
 function isSelectedItemsHasQuantity() {
   return filteredItems.value?.length > 0 && filteredItems.value.filter((item: any) => item.itemStatusId === "INV_COUNT_CREATED" && item.isChecked).every((item: any) => item.quantity >= 0)
+}
+
+async function toggleChart() {
+  showChart.value = !showChart.value;
 }
 </script>
 
